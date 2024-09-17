@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Jump Runner Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background-color: #87CEEB;
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+
+        const c = document.getElementById('gameCanvas'),
+              ctx = c.getContext('2d');
+        let cWidth, cHeight;
+
+        let p, o, freq, lastTime, speed, s;
+        let gOver = false, gStarted = false, loopId;
+
+        let scaleX, scaleY;
+
+        function resizeCanvas() {
+            cWidth = window.innerWidth;
+            cHeight = window.innerHeight * 0.3;
+            c.width = cWidth;
+            c.height = cHeight;
+
+            scaleX = cWidth / 800;
+            scaleY = cHeight / 165;
+        }
+
+        function init() {
+            resizeCanvas();
+            p = {
+                x: 50 * scaleX,
+                y: c.height - 40 * scaleY,
+                w: 30 * scaleX,
+                h: 40 * scaleY,
+                dy: 0,
+                g: 0.5 * scaleY,
+                jf: -10 * scaleY,
+                grounded: false,
+                jump() {
+                    if (this.grounded) {
+                        this.dy = this.jf;
+                        this.grounded = false;
+                    }
+                },
+                update(deltaTime) {
+                    this.dy += this.g * (deltaTime / 16.67);
+                    this.y += this.dy * (deltaTime / 16.67);
+                    if (this.y + this.h >= c.height) {
+                        this.y = c.height - this.h;
+                        this.dy = 0;
+                        this.grounded = true;
+                    }
+                    if (this.y < 0) {
+                        this.y = 0;
+                        this.dy = 0;
+                    }
+                },
+                draw() {
+                    ctx.fillStyle = '#f00';
+                    ctx.fillRect(this.x, this.y, this.w, this.h);
+                }
+            };
+            o = [];
+            freq = 2000;
+            lastTime = performance.now();
+            speed = 5 * scaleX;
+            s = 0;
+            gOver = false;
+            gStarted = false;
+            lastObstacleTime = performance.now();
+        }
+
+        function setupInput() {
+            document.addEventListener('keydown', onKey);
+            c.addEventListener('click', onAction);
+            c.addEventListener('touchstart', onAction);
+        }
+
+        function removeInput() {
+            document.removeEventListener('keydown', onKey);
+            c.removeEventListener('click', onAction);
+            c.removeEventListener('touchstart', onAction);
+        }
+
+        function onKey(e) {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                if (!gStarted) {
+                    gStarted = true;
+                    lastTime = performance.now();
+                    gameLoop(performance.now());
+                }
+                p.jump();
+            }
+        }
+
+        function onAction() {
+            if (!gStarted) {
+                gStarted = true;
+                lastTime = performance.now();
+                gameLoop(performance.now());
+            }
+            p.jump();
+        }
+
+        function gameLoop(timestamp) {
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, c.width, c.height);
+
+            if (timestamp - lastObstacleTime > freq) {
+                createObstacle();
+                lastObstacleTime = timestamp;
+            }
+
+            for (let i = o.length - 1; i >= 0; i--) {
+                const ob = o[i];
+                ob.x -= speed * (deltaTime / 16.67);
+                ob.draw();
+
+                if (
+                    p.x < ob.x + ob.w &&
+                    p.x + p.w > ob.x &&
+                    p.y < ob.y + ob.h &&
+                    p.y + p.h > ob.y
+                ) {
+                    gOver = true;
+                }
+
+                if (ob.x + ob.w < 0) {
+                    o.splice(i, 1);
+                    s++;
+                }
+            }
+
+            p.update(deltaTime);
+            p.draw();
+            drawScore();
+
+            if (gOver) {
+                endGame();
+            } else {
+                loopId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function createObstacle() {
+            let h = (Math.random() * 50 + 20) * scaleY;
+            let ob = {
+                x: c.width,
+                y: c.height - h,
+                w: 20 * scaleX,
+                h: h,
+                draw() {
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(this.x, this.y, this.w, this.h);
+                }
+            };
+            o.push(ob);
+        }
+
+        function drawScore() {
+            ctx.fillStyle = '#fff';
+            ctx.font = `${20 * scaleY}px Arial`;
+            ctx.textBaseline = 'top';
+            ctx.textAlign = 'left';
+            ctx.fillText('Score: ' + s, 10 * scaleX, 10 * scaleY);
+        }
+
+        function drawInstructions() {
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.fillStyle = '#fff';
+            ctx.font = `${24 * scaleY}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Press Space to Jump', c.width / 2, c.height / 2);
+        }
+
+        function endGame() {
+            cancelAnimationFrame(loopId);
+            removeInput();
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.fillStyle = '#fff';
+            ctx.font = `${24 * scaleY}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Game Over!', c.width / 2, c.height / 2 - 30 * scaleY);
+            ctx.fillText('Your Score: ' + s, c.width / 2, c.height / 2);
+            ctx.fillText('Press Space to Restart', c.width / 2, c.height / 2 + 30 * scaleY);
+            document.addEventListener('keydown', restartOnSpace);
+            c.addEventListener('click', restartOnAction);
+            c.addEventListener('touchstart', restartOnAction);
+        }
+
+        function restartOnSpace(e) {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                removeRestart();
+                init();
+                setupInput();
+                gStarted = true;
+                lastTime = performance.now();
+                gameLoop(performance.now());
+            }
+        }
+
+        function restartOnAction() {
+            removeRestart();
+            init();
+            setupInput();
+            gStarted = true;
+            lastTime = performance.now();
+            gameLoop(performance.now());
+        }
+
+        function removeRestart() {
+            document.removeEventListener('keydown', restartOnSpace);
+            c.removeEventListener('click', restartOnAction);
+            c.removeEventListener('touchstart', restartOnAction);
+        }
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            if (p) {
+                p.w = 30 * scaleX;
+                p.h = 40 * scaleY;
+                p.x = 50 * scaleX;
+                p.g = 0.5 * scaleY;
+                p.jf = -10 * scaleY;
+                speed = 4 * scaleX;
+                if (p.y + p.h > c.height) {
+                    p.y = c.height - p.h;
+                    p.dy = 0;
+                    p.grounded = true;
+                }
+            }
+            o.forEach(ob => {
+                ob.w = 20 * scaleX;
+                ob.h = ob.h * scaleY / ob.scaleY;
+                ob.y = c.height - ob.h;
+                ob.scaleY = scaleY;
+            });
+            if (!gStarted) {
+                drawInstructions();
+            } else if (gOver) {
+                endGame();
+            }
+        });
+
+        let lastObstacleTime = performance.now();
+
+        init();
+        setupInput();
+        drawInstructions();
+    </script>
+</body>
+</html>
